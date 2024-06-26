@@ -97,25 +97,27 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
         alarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
 
         // Stop-detection PI
-        stationaryAlarmPI = PendingIntent.getBroadcast(mContext, 0, new Intent(STATIONARY_ALARM_ACTION), buildVersionSPlus ? PendingIntent.FLAG_IMMUTABLE : 0);
+        Intent stationaryAlarmIntent = new Intent(mContext, StationaryAlarmReceiver.class);
+        stationaryAlarmIntent.setAction(STATIONARY_ALARM_ACTION);
+        stationaryAlarmPI = PendingIntent.getBroadcast(mContext, 0, stationaryAlarmIntent, buildVersionSPlus ? PendingIntent.FLAG_MUTABLE : 0);
         registerReceiver(stationaryAlarmReceiver, new IntentFilter(STATIONARY_ALARM_ACTION));
 
         // Stationary region PI
-        Intent stationaryRegionIntent = new Intent(STATIONARY_REGION_ACTION);
-        stationaryRegionIntent.setPackage(mContext.getPackageName());
+        Intent stationaryRegionIntent = new Intent(mContext, StationaryRegionReceiver.class);
+        stationaryRegionIntent.setAction(STATIONARY_REGION_ACTION);
         stationaryRegionPI = PendingIntent.getBroadcast(mContext, 0, stationaryRegionIntent, buildVersionSPlus ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_CANCEL_CURRENT);
         registerReceiver(stationaryRegionReceiver, new IntentFilter(STATIONARY_REGION_ACTION));
 
         // Stationary location monitor PI
-        Intent stationaryLocationPollingIntent = new Intent(STATIONARY_LOCATION_MONITOR_ACTION);
-        stationaryLocationPollingIntent.setPackage(mContext.getPackageName());
-        stationaryLocationPollingPI = PendingIntent.getBroadcast(mContext, 0, stationaryLocationPollingIntent, buildVersionSPlus ? PendingIntent.FLAG_MUTABLE : 0);
+        Intent stationaryLocationMonitorIntent = new Intent(mContext, StationaryLocationMonitorReceiver.class);
+        stationaryLocationMonitorIntent.setAction(STATIONARY_LOCATION_MONITOR_ACTION);
+        stationaryLocationPollingPI = PendingIntent.getBroadcast(mContext, 0, stationaryLocationMonitorIntent, buildVersionSPlus ? PendingIntent.FLAG_MUTABLE : 0);
         registerReceiver(stationaryLocationMonitorReceiver, new IntentFilter(STATIONARY_LOCATION_MONITOR_ACTION));
 
         // One-shot PI (TODO currently unused)
-        Intent singleUpdateIntent = new Intent(SINGLE_LOCATION_UPDATE_ACTION);
-        singleUpdateIntent.setPackage(mContext.getPackageName());
-        singleUpdatePI = PendingIntent.getBroadcast(mContext, 0, singleUpdateIntent, buildVersionSPlus ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_CANCEL_CURRENT);
+        Intent singleLocationUpdateIntent = new Intent(mContext, SingleUpdateReceiver.class);
+        singleLocationUpdateIntent.setAction(SINGLE_LOCATION_UPDATE_ACTION);
+        singleUpdatePI = PendingIntent.getBroadcast(mContext, 0, singleLocationUpdateIntent, buildVersionSPlus ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_CANCEL_CURRENT);
         registerReceiver(singleUpdateReceiver, new IntentFilter(SINGLE_LOCATION_UPDATE_ACTION));
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(mContext);
@@ -225,6 +227,7 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
             // Temporarily turn on super-aggressive geolocation on all providers when acquiring velocity or stationary location.
             if (isAcquiringSpeed || isAcquiringStationaryLocation) {
                 locationAcquisitionAttempts = 0;
+                // Turn on the provider aggressively for a single update
                 LocationRequest locationRequest = new LocationRequest.Builder(0)
                     .setMinUpdateDistanceMeters(0)
                     .setMinUpdateIntervalMillis(0)
@@ -476,7 +479,7 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
     /**
      * Broadcast receiver for receiving a single-update from LocationManager.
      */
-    private BroadcastReceiver singleUpdateReceiver = new BroadcastReceiver() {
+    private class SingleUpdateReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             String key = LocationManager.KEY_LOCATION_CHANGED;
@@ -488,11 +491,12 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
             }
         }
     };
+    private BroadcastReceiver singleUpdateReceiver = new SingleUpdateReceiver();
 
     /**
      * Broadcast receiver which detects a user has stopped for a long enough time to be determined as STOPPED
      */
-    private BroadcastReceiver stationaryAlarmReceiver = new BroadcastReceiver() {
+    private class StationaryAlarmReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent)
         {
@@ -500,13 +504,14 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
             setPace(false);
         }
     };
+    private BroadcastReceiver stationaryAlarmReceiver = new StationaryAlarmReceiver();
 
     /**
      * Broadcast receiver to handle stationaryMonitor alarm, fired at low frequency while monitoring stationary-region.
      * This is required because latest Android proximity-alerts don't seem to operate while suspended.  Regularly polling
      * the location seems to trigger the proximity-alerts while suspended.
      */
-    private BroadcastReceiver stationaryLocationMonitorReceiver = new BroadcastReceiver() {
+    private class StationaryLocationMonitorReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent)
         {
@@ -525,11 +530,12 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
             }
         }
     };
+    private BroadcastReceiver stationaryLocationMonitorReceiver = new StationaryLocationMonitorReceiver();
 
     /**
      * Broadcast receiver which detects a user has exit his circular stationary-region determined by the greater of stationaryLocation.getAccuracy() OR stationaryRadius
      */
-    private BroadcastReceiver stationaryRegionReceiver = new BroadcastReceiver() {
+    private class StationaryRegionReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             String key = LocationManager.KEY_PROXIMITY_ENTERING;
@@ -551,6 +557,7 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
             }
         }
     };
+    private BroadcastReceiver stationaryRegionReceiver = new StationaryRegionReceiver();
 
     public void onProviderDisabled(String provider) {
         // TODO Auto-generated method stub
