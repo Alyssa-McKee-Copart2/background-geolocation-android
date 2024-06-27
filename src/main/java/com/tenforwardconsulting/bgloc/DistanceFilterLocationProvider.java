@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.Build;
 import androidx.core.util.Consumer;
 import androidx.core.content.ContextCompat;
+import androidx.annotation.RequiresApi;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationListener;
@@ -60,11 +61,14 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
     private static final int MAX_SPEED_ACQUISITION_ATTEMPTS = 3;
 
     private Boolean buildVersionSPlus = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
+    private Boolean buildVersionOPlus = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
 
     private Boolean isMoving = false;
     private Boolean isAcquiringStationaryLocation = false;
     private Boolean isAcquiringSpeed = false;
     private Integer locationAcquisitionAttempts = 0;
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
     private Instant lastStationaryUpdate = null;
 
     private Location lastLocation;
@@ -182,13 +186,13 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
     @Override
     protected void handleStationary (Location location, float radius) {
         super.handleStationary(location, radius);
-        lastStationaryUpdate = Instant.now();
+        if (buildVersionOPlus) { lastStationaryUpdate = Instant.now(); }
     }
 
     @Override
     protected void handleStationary (Location location) {
         super.handleStationary(location);
-        lastStationaryUpdate = Instant.now();
+        if (buildVersionOPlus) { lastStationaryUpdate = Instant.now(); }
     }
 
     @Override
@@ -454,14 +458,16 @@ public class DistanceFilterLocationProvider extends AbstractLocationProvider imp
         if (distance > stationaryRadius) {
             onExitStationaryRegion(location);
         } else {
-            // lastStationaryUpdate should not be null, but if it is go ahead and assign it one.
-            if (lastStationaryUpdate == null) lastStationaryUpdate = Instant.now();
-            Instant now = Instant.now();
-            long timeSpentStationary = ChronoUnit.MINUTES.between(lastStationaryUpdate, now);
-            logger.debug("Stationary location Update Check: " + location.toString() + " | Mins Stationary: " + timeSpentStationary);
-            if (timeSpentStationary >= mConfig.getStationaryUpdateInterval()) {
-                logger.debug("Stationary location Updating!" + location.toString() + " | Mins Stationary: " + timeSpentStationary);
-                handleStationary(location);
+            if (buildVersionOPlus) {
+                // lastStationaryUpdate should not be null, but if it is go ahead and assign it one.
+                if (lastStationaryUpdate == null) lastStationaryUpdate = Instant.now();
+                Instant now = Instant.now();
+                long timeSpentStationary = ChronoUnit.MINUTES.between(lastStationaryUpdate, now);
+                logger.debug("Stationary location Update Check: " + location.toString() + " | Mins Stationary: " + timeSpentStationary);
+                if (timeSpentStationary >= mConfig.getStationaryUpdateInterval()) {
+                    logger.debug("Stationary location Updating!" + location.toString() + " | Mins Stationary: " + timeSpentStationary);
+                    handleStationary(location);
+                }
             }
             // distance is abs so it will always be > 0 except for the small change of being == 0. I am not sure what the reason for this check is.
             // 0 <= distance < stationaryRadius
