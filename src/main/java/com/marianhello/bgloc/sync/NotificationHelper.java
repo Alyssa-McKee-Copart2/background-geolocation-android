@@ -56,13 +56,18 @@ public class NotificationHelper {
 
             builder.setContentTitle(title);
             builder.setContentText(text);
+            builder.setOngoing(true);
             if (smallIcon != null && !smallIcon.isEmpty()) {
                 builder.setSmallIcon(mResolver.getDrawable(smallIcon));
             } else {
                 builder.setSmallIcon(android.R.drawable.ic_menu_mylocation);
             }
             if (largeIcon != null && !largeIcon.isEmpty()) {
-                builder.setLargeIcon(BitmapFactory.decodeResource(appContext.getResources(), mResolver.getDrawable(largeIcon)));
+                int largeIconId = mResolver.getDrawable(largeIcon);
+                if (largeIconId == 0) {
+                    logger.warn("The resource " + largeIcon + " was not found in the drawable folder. Please include it when building the app.");
+                }
+                builder.setLargeIcon(BitmapFactory.decodeResource(appContext.getResources(), largeIconId));
             }
             if (color != null && !color.isEmpty()) {
                 builder.setColor(this.parseNotificationIconColor(color));
