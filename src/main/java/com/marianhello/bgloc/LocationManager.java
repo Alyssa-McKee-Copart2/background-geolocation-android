@@ -9,6 +9,9 @@ import android.location.LocationListener;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
+import android.os.CancellationSignal;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 import com.github.jparkie.promise.Promise;
 import com.github.jparkie.promise.Promises;
@@ -98,19 +101,47 @@ public class LocationManager {
             return lastKnownNetworkLocation;
         }
 
-        Criteria criteria = new Criteria();
-        criteria.setAccuracy(enableHighAccuracy ? Criteria.ACCURACY_FINE : Criteria.ACCURACY_COARSE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Location[] resultLocation = new Location[1];
+            final CancellationSignal cancellationSignal = new CancellationSignal();
+            
+            Consumer<Location> locationConsumer = location -> {
+                resultLocation[0] = location;
+                latch.countDown();
+            };
 
-        CurrentLocationListener locationListener = new CurrentLocationListener();
-        locationManager.requestSingleUpdate(criteria, locationListener, Looper.getMainLooper());
+            Executor executor = command -> new Thread(command).start();
+            
+            locationManager.getCurrentLocation(
+                android.location.LocationManager.FUSED_PROVIDER,
+                cancellationSignal,
+                executor,
+                locationConsumer
+            );
 
-        if (!locationListener.mCountDownLatch.await(timeout, TimeUnit.MILLISECONDS)) {
-            locationManager.removeUpdates(locationListener);
-            throw new TimeoutException();
-        }
+            if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+                cancellationSignal.cancel();
+                throw new TimeoutException();
+            }
 
-        if (locationListener.mLocation != null) {
-            return locationListener.mLocation;
+            return resultLocation[0];
+        } else {
+            // Fallback for older Android versions
+            Criteria criteria = new Criteria();
+            criteria.setAccuracy(enableHighAccuracy ? Criteria.ACCURACY_FINE : Criteria.ACCURACY_COARSE);
+
+            CurrentLocationListener locationListener = new CurrentLocationListener();
+            locationManager.requestSingleUpdate(criteria, locationListener, Looper.getMainLooper());
+
+            if (!locationListener.mCountDownLatch.await(timeout, TimeUnit.MILLISECONDS)) {
+                locationManager.removeUpdates(locationListener);
+                throw new TimeoutException();
+            }
+
+            if (locationListener.mLocation != null) {
+                return locationListener.mLocation;
+            }
         }
 
         return null;
@@ -142,3 +173,4 @@ public class LocationManager {
         }
     }
 }
+ 
