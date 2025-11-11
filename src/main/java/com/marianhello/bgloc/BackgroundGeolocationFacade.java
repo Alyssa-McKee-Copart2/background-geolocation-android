@@ -168,6 +168,10 @@ public class BackgroundGeolocationFacade {
 
                     if (mDelegate != null) {
                         mDelegate.onHttpAuthorization();
+                    } else {
+                        // No delegate, we may be running in the background.
+                        // Let's just stop. ?
+                        stop();
                     }
 
                     return;
