@@ -26,6 +26,7 @@ import org.json.JSONException;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * Handle the transfer of data between a server and an
@@ -124,6 +125,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements HttpPost
         String url = config.getSyncUrl();
         HashMap<String, String> httpHeaders = new HashMap<String, String>();
         httpHeaders.putAll(config.getHttpHeaders());
+        String correlationId = "M3-" + UUID.randomUUID().toString();
+        httpHeaders.put("correlationID", correlationId);
         httpHeaders.put("x-batch-id", String.valueOf(batchStartMillis));
 
         if (uploadLocations(file, url, httpHeaders)) {
